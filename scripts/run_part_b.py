@@ -95,7 +95,7 @@ def main():
         cr_wide,
         how="left",
     )
-
+    combined_returns = combined_returns.dropna(how="any")
     min_variance = oos_backtest(
         combined_returns,
         method="min_variance",
