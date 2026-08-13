@@ -53,3 +53,38 @@ def sector_sentiment_index(scores: pd.DataFrame) -> pd.DataFrame:
     )
 
     return sector_daily
+def sentiment_shock_index(
+    sector_index: pd.DataFrame,
+    window: int = 20,
+) -> pd.DataFrame:
+    data = sector_index.copy()
+    data = data.sort_values(["sector", "date"])
+
+    data["sentiment_mean_20"] = (
+        data.groupby("sector")["sentiment"]
+        .transform(
+            lambda x: x.shift(1).rolling(window).mean()
+        )
+    )
+
+    data["sentiment_std_20"] = (
+        data.groupby("sector")["sentiment"]
+        .transform(
+            lambda x: x.shift(1).rolling(window).std()
+        )
+    )
+
+    data["sentiment_shock"] = (
+        (
+            data["sentiment_lag1"]
+            - data["sentiment_mean_20"]
+        )
+        / data["sentiment_std_20"]
+    )
+
+    data["sentiment_shock"] = (
+        data["sentiment_shock"]
+        .clip(-2, 2)
+    )
+
+    return data

@@ -77,3 +77,72 @@ def apply_sentiment(
             )
 
     return tilted
+def apply_sentiment_shock(
+    weights: pd.DataFrame,
+    sentiment: pd.DataFrame,
+    sector_universe: pd.DataFrame,
+):
+    weights = weights.copy()
+    sentiment = sentiment.copy()
+    sector_universe = sector_universe.copy()
+
+    weights["date"] = pd.to_datetime(weights["date"])
+    sentiment["date"] = pd.to_datetime(sentiment["date"])
+
+    sector_map = dict(
+        zip(
+            sector_universe["ticker"],
+            sector_universe["sector"],
+        )
+    )
+
+    sentiment_wide = sentiment.pivot(
+        index="date",
+        columns="sector",
+        values="sentiment_shock",
+    )
+
+    asset_columns = [
+        col
+        for col in weights.columns
+        if col not in ["date", "method"]
+    ]
+
+    equity_columns = [
+        col
+        for col in asset_columns
+        if col.startswith("equity_")
+    ]
+
+    tilted = weights.copy()
+
+    for i in tilted.index:
+        date = tilted.at[i, "date"]
+
+        if date not in sentiment_wide.index:
+            continue
+
+        day_shock = sentiment_wide.loc[date]
+
+        for col in equity_columns:
+            ticker = col.replace("equity_", "")
+            sector = sector_map.get(ticker)
+
+            if sector in day_shock.index:
+                shock = day_shock[sector]
+
+                if pd.notna(shock):
+                    tilted.at[i, col] = (
+                        tilted.at[i, col]
+                        * (1 + 0.10 * shock)
+                    )
+
+        total = tilted.loc[i, asset_columns].sum()
+
+        if total > 0:
+            tilted.loc[i, asset_columns] = (
+                tilted.loc[i, asset_columns]
+                / total
+            )
+
+    return tilted

@@ -12,10 +12,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from src import data_access  # noqa: E402
 from src.features import daily_returns  # noqa: E402
-from src.fusion import apply_sentiment  # noqa: E402
+from src.fusion import apply_sentiment, apply_sentiment_shock  # noqa: E402
 from src.portfolios import oos_backtest, performance_metrics  # noqa: E402
-from src.sentiment import score_headlines, sector_sentiment_index  # noqa: E402
-
+from src.sentiment import (
+    score_headlines,
+    sector_sentiment_index,
+    sentiment_shock_index,
+)  # noqa: E402
 
 def returns_from_weights(returns, weights):
     weights = weights.copy()
@@ -213,7 +216,12 @@ def main():
     sector_index = sector_sentiment_index(
         headline_scores
     )
+    shock_index = sentiment_shock_index(sector_index)
 
+    shock_index.to_csv(
+        results_data / "sector_sentiment_shock.csv",
+        index=False,
+    )
     sector_index.to_csv(
         results_data / "sector_sentiment_index.csv",
         index=False,
@@ -232,7 +240,17 @@ def main():
         sector_index,
         sector_universe,
     )
+    min_shock_weights = apply_sentiment_shock(
+        min_variance["weights"],
+        shock_index,
+        sector_universe,
+    )
 
+    max_shock_weights = apply_sentiment_shock(
+        max_sharpe["weights"],
+        shock_index,
+        sector_universe,
+    )
     min_tilted_returns = returns_from_weights(
         combined_returns,
         min_tilted_weights,
@@ -242,7 +260,15 @@ def main():
         combined_returns,
         max_tilted_weights,
     )
+    min_shock_returns = returns_from_weights(
+        combined_returns,
+        min_shock_weights,
+    )
 
+    max_shock_returns = returns_from_weights(
+        combined_returns,
+        max_shock_weights,
+    )
     min_tilted_metrics = performance_metrics(
         min_tilted_returns,
         periods_per_year=252,
@@ -252,7 +278,15 @@ def main():
         max_tilted_returns,
         periods_per_year=252,
     )
+    min_shock_metrics = performance_metrics(
+        min_shock_returns,
+        periods_per_year=252,
+    )
 
+    max_shock_metrics = performance_metrics(
+        max_shock_returns,
+        periods_per_year=252,
+    )
     fusion_metrics = pd.DataFrame([
         {
             "method": "min_variance",
@@ -276,7 +310,39 @@ def main():
         results_tables / "fusion_metrics.csv",
         index=False,
     )
+    shock_metrics = pd.DataFrame(
+        [
+            {
+                "method": "min_variance",
+                **min_variance["metrics"],
+            },
+            {
+                "method": "min_variance_basic_sentiment",
+                **min_tilted_metrics,
+            },
+            {
+                "method": "min_variance_sentiment_shock",
+                **min_shock_metrics,
+            },
+            {
+                "method": "max_sharpe",
+                **max_sharpe["metrics"],
+            },
+            {
+                "method": "max_sharpe_basic_sentiment",
+                **max_tilted_metrics,
+            },
+            {
+                "method": "max_sharpe_sentiment_shock",
+                **max_shock_metrics,
+            },
+        ]
+    )
 
+    shock_metrics.to_csv(
+        results_tables / "sentiment_shock_metrics.csv",
+        index=False,
+    )
     return_index = min_variance[
         "daily_returns"
     ].index
@@ -304,7 +370,9 @@ def main():
             return_index
         )
     )
+    fund_returns["min_variance_sentiment_shock"] = min_shock_returns.reindex(return_index)
 
+    fund_returns["max_sharpe_sentiment_shock"] = max_shock_returns.reindex(return_index)
     fund_returns = fund_returns.reset_index()
 
     fund_returns = fund_returns.rename(
@@ -487,7 +555,38 @@ def main():
         results_figures / "fusion_comparison.png",
         dpi=300,
     )
+    shock_growth = (
+        1
+        + fund_returns.set_index("date")[
+            [
+                "max_sharpe",
+                "max_sharpe_sentiment",
+                "max_sharpe_sentiment_shock",
+            ]
+        ]
+    ).cumprod()
 
+    plt.figure(figsize=(10, 6))
+
+    for column in shock_growth.columns:
+        plt.plot(
+            shock_growth.index,
+            shock_growth[column],
+            label=column,
+        )
+
+    plt.title("Maximum-Sharpe Fund: Sentiment Extension Comparison")
+    plt.xlabel("Date")
+    plt.ylabel("Growth of $1")
+    plt.legend()
+    plt.tight_layout()
+
+    plt.savefig(
+        results_figures / "sentiment_shock_comparison.png",
+        dpi=300,
+    )
+
+    plt.close()
     plt.close()
     min_weights = min_variance[
         "weights"
@@ -504,13 +603,17 @@ def main():
     max_tilted_weights[
         "method"
     ] = "max_sharpe_sentiment"
+    min_shock_weights["method"] = "min_variance_sentiment_shock"
 
+    max_shock_weights["method"] = "max_sharpe_sentiment_shock"
     fund_weights = pd.concat(
         [
             min_weights,
             max_weights,
             min_tilted_weights,
             max_tilted_weights,
+            min_shock_weights,
+            max_shock_weights,
         ],
         ignore_index=True,
     )
@@ -584,6 +687,11 @@ def main():
     print(results_figures / "sector_sentiment_index.png")
     print(results_figures / "fusion_comparison.png")
     print(results_tables / "current_holdings.csv")
+    print(results_data / "sector_sentiment_shock.csv")
+
+    print(results_tables / "sentiment_shock_metrics.csv")
+
+    print(results_figures / "sentiment_shock_comparison.png")
     # TODO: returns -> out-of-sample funds + fact sheets (Station 3)
     # TODO: sentiment index + fusion extension (Station 3)
     # TODO: save figures/tables under results/ for the app and the report

@@ -422,3 +422,81 @@ with tab_sentiment:
         width="stretch",
         hide_index=True,
     )
+    st.subheader("Sentiment Shock Extension")
+
+    shock_metrics = pd.read_csv(RESULTS_TABLES / "sentiment_shock_metrics.csv")
+
+    shock_display = shock_metrics[
+        shock_metrics["method"].isin(
+            [
+                "max_sharpe",
+                "max_sharpe_basic_sentiment",
+                "max_sharpe_sentiment_shock",
+            ]
+        )
+    ].copy()
+
+    shock_names = {
+        "max_sharpe": "Base Maximum Sharpe",
+        "max_sharpe_basic_sentiment": "Basic Sentiment Tilt",
+        "max_sharpe_sentiment_shock": "Sentiment Shock Tilt",
+    }
+
+    shock_display["Fund"] = shock_display["method"].map(shock_names)
+
+    st.dataframe(
+        shock_display[
+            [
+                "Fund",
+                "annualised_return",
+                "annualised_volatility",
+                "sharpe",
+                "max_drawdown",
+            ]
+        ]
+        .rename(
+            columns={
+                "annualised_return": "Annualised Return",
+                "annualised_volatility": "Annualised Volatility",
+                "sharpe": "Sharpe Ratio",
+                "max_drawdown": "Maximum Drawdown",
+            }
+        )
+        .style.format(
+            {
+                "Annualised Return": "{:.2%}",
+                "Annualised Volatility": "{:.2%}",
+                "Sharpe Ratio": "{:.2f}",
+                "Maximum Drawdown": "{:.2%}",
+            }
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+
+    shock_return_columns = [
+        "max_sharpe",
+        "max_sharpe_sentiment",
+        "max_sharpe_sentiment_shock",
+    ]
+
+    shock_growth = (
+        1 + fund_returns[["date"] + shock_return_columns].dropna().set_index("date")
+    ).cumprod()
+
+    shock_growth = shock_growth.rename(
+        columns={
+            "max_sharpe": "Base Maximum Sharpe",
+            "max_sharpe_sentiment": "Basic Sentiment Tilt",
+            "max_sharpe_sentiment_shock": "Sentiment Shock Tilt",
+        }
+    )
+
+    st.line_chart(shock_growth)
+
+    st.caption(
+        "The sentiment shock signal compares lagged sector sentiment with its recent "
+        "20-day history. The extension did not improve the maximum-Sharpe fund in this "
+        "sample, but it provides a separate test of whether unusually strong sentiment "
+        "contains additional information beyond the absolute sentiment level."
+    )
