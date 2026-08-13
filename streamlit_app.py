@@ -27,7 +27,6 @@ st.title("SignalHarbour")
 st.caption("Systematic multi-asset funds with news-sentiment analytics")
 
 
-@st.cache_data
 def load_results():
     fund_returns = pd.read_csv(
         RESULTS_DATA / "fund_returns.csv",
