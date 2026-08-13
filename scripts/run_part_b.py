@@ -467,7 +467,47 @@ def main():
         results_figures / "weights_over_time.png",
         dpi=300,
     )
+    min_weights_plot = min_variance["weights"].copy()
+    max_weights_plot = max_sharpe["weights"].copy()
 
+    min_weights_plot["date"] = pd.to_datetime(min_weights_plot["date"])
+
+    max_weights_plot["date"] = pd.to_datetime(max_weights_plot["date"])
+
+    min_crypto_columns = [col for col in min_weights_plot.columns if col.startswith("crypto_")]
+
+    max_crypto_columns = [col for col in max_weights_plot.columns if col.startswith("crypto_")]
+
+    min_crypto_weight = min_weights_plot[min_crypto_columns].sum(axis=1)
+
+    max_crypto_weight = max_weights_plot[max_crypto_columns].sum(axis=1)
+
+    plt.figure(figsize=(10, 6))
+
+    plt.plot(
+        min_weights_plot["date"],
+        min_crypto_weight,
+        label="Minimum Variance",
+    )
+
+    plt.plot(
+        max_weights_plot["date"],
+        max_crypto_weight,
+        label="Maximum Sharpe",
+    )
+
+    plt.title("Crypto Allocation Over Time Across Portfolio Methods")
+    plt.xlabel("Date")
+    plt.ylabel("Total Crypto Weight")
+    plt.legend()
+    plt.tight_layout()
+
+    plt.savefig(
+        results_figures / "crypto_weight_comparison.png",
+        dpi=300,
+    )
+
+    plt.close()
     plt.close()
 
     sharpe_plot = fusion_metrics[["method", "sharpe"]].copy()
@@ -690,7 +730,7 @@ def main():
     print(results_data / "sector_sentiment_shock.csv")
 
     print(results_tables / "sentiment_shock_metrics.csv")
-
+    print(results_figures / "crypto_weight_comparison.png")
     print(results_figures / "sentiment_shock_comparison.png")
     # TODO: returns -> out-of-sample funds + fact sheets (Station 3)
     # TODO: sentiment index + fusion extension (Station 3)
